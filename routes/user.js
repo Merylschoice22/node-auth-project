@@ -56,6 +56,7 @@ const fs = require("fs"); // fs is node's inbuilt file system module used to man
 const utils = require("../utils");
 
 const usersDb = require("../database/db.json"); // import existing data from db.json file
+const { request } = require("express");
 
 const router = express.Router(); // we create a new router using express's inbuilt Router method
 
@@ -68,7 +69,7 @@ router.post("/sign-up", async (req, res) => {
   const existingUser = usersDb.find((user) => user.email == email);
   if (existingUser) {
     // if there is, return an error
-    res.status(400).send("User already exists!");
+    res.status(400).send({ error: "User already exists!" });
     return;
   }
 
@@ -124,6 +125,36 @@ router.post("/sign-in", function (req, res) {
 
   // return the JWT so they can start making authenticated requests
   res.status(200).send({ jwt: jwt });
+});
+
+//only allow access if the request contained a header with a valid json webtoken
+const authMiddleware = (req, res, next) => {
+  //get JWT from headers
+  const jwt = req.headers("authorization");
+  //validate JWT
+  const userID = utils.decodeJWT(jwt);
+  //if invalid, return status 401, unauthorized
+  if (!userID) {
+    res.status(401).send();
+    return;
+  }
+  request.userID = userID;
+  next();
+};
+
+//return the user's ID and email
+router.get("/auth", authMiddleware, (req, res) => {
+  //find user with the ID that's in the JWT
+  const user = userDb.find((user) => user.id == request.userID);
+  if (!user) {
+    res.status(404).send();
+    return;
+  }
+  //return a json object with that ID and the user's email
+  res.send({
+    id: user.id,
+    email: user.email,
+  });
 });
 
 module.exports = router; // we need to export this router to implement it inside our server.js file
