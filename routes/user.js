@@ -1,62 +1,9 @@
 const express = require("express");
 const bcrypt = require("bcrypt"); // bcrypt is used to hash password before saving it to database
 const fs = require("fs"); // fs is node's inbuilt file system module used to manage files
-
-const usersDb = require("../database/db.json"); // import existing data from db.json file
-
-const router = express.Router(); // we create a new router using express's inbuilt Router method
-
-// user registration / sign-up
-router.post("/sign-up", async (req, res) => {
-  const { name, email, password } = req.body;
-
-  try {
-    const user = await usersDb.filter((user) => user.email === email);
-
-    if (user.length > 0) {
-      return res.status(400).json({ error: "User already exist!" });
-    }
-
-    const salt = await bcrypt.genSalt(10);
-    const bcryptPassword = await bcrypt.hash(password, salt);
-
-    let newUser = {
-      id: usersDb.length,
-      name: name,
-      email: email,
-      password: bcryptPassword,
-    };
-
-    usersDb.push(newUser); // we add newUser to usersDb array
-
-    // we save the updated array to db.json file by using fs module of node
-
-    await fs.writeFileSync("./database/db.json", JSON.stringify(usersDb));
-
-    /* Once the user registration is done successfully, we will generate a
-      jsonwebtoken and send it back to user. This token will be used for
-      accessing other resources to verify identity of the user.
-      
-      The following generateJWT function does not exist till now but we
-      will create it in the next step. */
-
-    const jwtToken = generateJWT(newUser.id);
-
-    return res.status(201).send({ jwtToken: jwtToken, isAuthenticated: true });
-  } catch (error) {
-    console.error(error.message);
-    res.status(500).send({ error: error.message });
-  }
-});
-
-module.exports = router; // we need to export this router to implement it inside our server.js file
-const express = require("express");
-const bcrypt = require("bcrypt"); // bcrypt is used to hash password before saving it to database
-const fs = require("fs"); // fs is node's inbuilt file system module used to manage files
 const utils = require("../utils");
 
 const usersDb = require("../database/db.json"); // import existing data from db.json file
-const { request } = require("express");
 
 const router = express.Router(); // we create a new router using express's inbuilt Router method
 
@@ -106,7 +53,7 @@ router.post("/sign-in", function (req, res) {
   const user = usersDb.find((user) => user.email == email);
   if (!user) {
     // if none exists return error 401 - unauthorized
-    res.status(401).send();
+    res.status(401).send({ error: "unauthorized" });
     return;
   }
 
@@ -116,7 +63,7 @@ router.post("/sign-in", function (req, res) {
 
   if (!isValid) {
     // if they dont match return error 401 - unauthorized
-    res.status(401).send();
+    res.status(401).send({ error: "unauthorized" });
     return;
   }
 
@@ -127,31 +74,34 @@ router.post("/sign-in", function (req, res) {
   res.status(200).send({ jwt: jwt });
 });
 
-//only allow access if the request contained a header with a valid json webtoken
-const authMiddleware = (req, res, next) => {
-  //get JWT from headers
-  const jwt = req.headers("authorization");
-  //validate JWT
-  const userID = utils.decodeJWT(jwt);
-  //if invalid, return status 401, unauthorized
-  if (!userID) {
-    res.status(401).send();
+// only allow access if the request contained a header with a valid json webtoken
+function authMiddleware(request, response, next) {
+  // get jwt from headers
+  const jwt = request.header("authorization");
+  // validate JWT
+  const userId = utils.decodeJWT(jwt);
+  if (!userId) {
+    //   if invalid, return status 401 - unauthorized
+    response.status(401).send({ error: "unauthorized" });
     return;
   }
-  request.userID = userID;
+  request.userId = userId;
   next();
-};
+}
 
-//return the user's ID and email
-router.get("/auth", authMiddleware, (req, res) => {
-  //find user with the ID that's in the JWT
-  const user = userDb.find((user) => user.id == request.userID);
+// only allow access if the request contained a header with a valid json webtoken
+// return the users id and email
+router.get("/auth", authMiddleware, function (req, response) {
+  // find user with the ID that's in the JWT
+  const user = usersDb.find((user) => user.id == req.userId);
+
   if (!user) {
-    res.status(404).send();
+    response.status(404).send({ error: "not found" });
     return;
   }
-  //return a json object with that ID and the user's email
-  res.send({
+
+  // return a json object with that id and the user's email
+  response.send({
     id: user.id,
     email: user.email,
   });

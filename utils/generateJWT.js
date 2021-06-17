@@ -8,17 +8,18 @@ function generateJWT(userId) {
   return jwt;
 }
 
-//take a JWT string, verify that the signature mathes (based on your secret)
-//if it matches, return the userID, otherwise return false
-const decodeJWT = (jwt) => {
+// take a jwt string, verify the signature matches (based on your secret)
+// if it matches, return the userId, otherwise return false
+function decodeJWT(jwt) {
   const secret = process.env.JWT_SECRET;
   try {
     const data = jsonwebtoken.verify(jwt, secret);
     return data.id;
-  } catch (error) {
+  } catch (e) {
+    console.log(e);
     return false;
   }
-};
+}
 
 module.exports = {
   generateJWT: generateJWT,
